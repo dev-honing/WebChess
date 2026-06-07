@@ -237,12 +237,14 @@ a { color: inherit; text-decoration: none; }
 .friends-modal-heading { display: flex; justify-content: space-between; align-items: center; padding: 19px; border-bottom: 1px solid var(--line); }
 .friends-modal-heading small { font: 8px "DM Mono"; letter-spacing: .14em; color: var(--muted); }.friends-modal-heading h2 { margin: 3px 0 0; font-size: 19px; }
 .friends-modal-heading button { width: 30px; height: 30px; border: 1px solid var(--ink); background: transparent; font-size: 20px; }
+.friends-share-button { margin: 16px 16px 0; border: 1px solid #201c00; background: #fee500; padding: 12px; font-size: 11px; font-weight: 900; }
 .friends-list { overflow-y: auto; overscroll-behavior: contain; }
 .friend-row { min-height: 64px; display: grid; grid-template-columns: 42px 1fr auto; gap: 11px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
 .friend-row img, .friend-row > span { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; display: grid; place-items: center; background: #fee500; }
 .friend-row b { font-size: 12px; }.friend-row button, .friends-empty a { border: 1px solid #201c00; background: #fee500; padding: 8px 12px; font-size: 10px; font-weight: 800; }
 .friend-row button:disabled { opacity: .5; }.friends-empty { padding: 40px 24px; text-align: center; color: var(--muted); }
 .friends-empty p { margin: 0 0 15px; font-size: 12px; }.friends-empty small { font-size: 10px; line-height: 1.6; }.friends-empty a { display: inline-block; color: #191600; }
+.friends-copy-fallback { display: block; margin: 10px auto 0; border: 0; border-bottom: 1px solid var(--muted); background: transparent; color: var(--muted); font-size: 10px; }
 
 @media (max-width: 950px) {
   .hero { grid-template-columns: 1fr; gap: 55px; padding-top: 55px; }

@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
   const state = randomBytes(24).toString("hex");
   const returnTo = url.searchParams.get("returnTo") || "/";
-  const consent = url.searchParams.get("consent") === "friends";
+  const consent = url.searchParams.get("consent");
   const cookieStore = await cookies();
   const secure = process.env.NODE_ENV === "production";
   cookieStore.set("kakao-oauth-state", state, {
@@ -38,8 +38,8 @@ export async function GET(request: Request) {
   authorize.searchParams.set("redirect_uri", kakaoRedirectUri(origin));
   authorize.searchParams.set("response_type", "code");
   authorize.searchParams.set("state", state);
-  if (consent) {
-    authorize.searchParams.set("scope", "friends,talk_message");
-  }
+  if (consent === "friends") authorize.searchParams.set("scope", "friends");
+  if (consent === "message") authorize.searchParams.set("scope", "talk_message");
+  if (consent === "friends_message") authorize.searchParams.set("scope", "friends,talk_message");
   return Response.redirect(authorize);
 }

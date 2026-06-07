@@ -20,6 +20,47 @@ const PIECES: Record<string, string> = {
 };
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const RANKS = ["8", "7", "6", "5", "4", "3", "2", "1"];
+const KAKAO_SDK_URL = "https://t1.kakaocdn.net/kakao_js_sdk/2.8.1/kakao.min.js";
+
+type KakaoSdk = {
+  init: (key: string) => void;
+  isInitialized: () => boolean;
+  Share: {
+    sendDefault: (options: {
+      objectType: "text";
+      text: string;
+      link: { mobileWebUrl: string; webUrl: string };
+      buttonTitle: string;
+    }) => void;
+  };
+};
+
+declare global {
+  interface Window {
+    Kakao?: KakaoSdk;
+  }
+}
+
+function loadKakaoSdk() {
+  return new Promise<KakaoSdk>((resolve, reject) => {
+    if (window.Kakao) {
+      resolve(window.Kakao);
+      return;
+    }
+
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${KAKAO_SDK_URL}"]`);
+    const script = existing || document.createElement("script");
+    const loaded = () => window.Kakao ? resolve(window.Kakao) : reject(new Error("카카오 SDK를 불러오지 못했습니다."));
+    script.addEventListener("load", loaded, { once: true });
+    script.addEventListener("error", () => reject(new Error("카카오 SDK를 불러오지 못했습니다.")), { once: true });
+
+    if (!existing) {
+      script.src = KAKAO_SDK_URL;
+      script.crossOrigin = "anonymous";
+      document.head.appendChild(script);
+    }
+  });
+}
 
 function formatTime(ms: number) {
   const safe = Math.max(0, ms);
@@ -208,6 +249,26 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
     await navigator.clipboard.writeText(`${origin}/game/${roomId}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
+  }
+
+  async function shareKakaoInvite() {
+    try {
+      const key = process.env.NEXT_PUBLIC_KAKAO_JAVASCRIPT_KEY;
+      if (!key) throw new Error("카카오 JavaScript 키가 설정되지 않았습니다.");
+
+      const kakao = await loadKakaoSdk();
+      if (!kakao.isInitialized()) kakao.init(key);
+
+      const inviteUrl = `${window.location.origin}/game/${roomId}`;
+      kakao.Share.sendDefault({
+        objectType: "text",
+        text: "웹 체스 대국에 초대합니다. 링크를 눌러 참가하세요.",
+        link: { mobileWebUrl: inviteUrl, webUrl: inviteUrl },
+        buttonTitle: "대국 참가하기",
+      });
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "카카오톡 공유를 열지 못했습니다.");
+    }
   }
 
   async function openKakaoFriends() {
@@ -427,12 +488,16 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
               <div><small>KAKAO FRIENDS</small><h2>친구에게 대국 초대</h2></div>
               <button onClick={() => setFriendsOpen(false)}>×</button>
             </div>
+            <button className="friends-share-button" onClick={() => void shareKakaoInvite()}>
+              카카오톡으로 공유해서 초대
+            </button>
             {friendsLoading ? (
               <p className="friends-empty">친구 목록을 불러오는 중...</p>
             ) : friendConsentRequired ? (
               <div className="friends-empty">
-                <p>카카오 친구 목록과 메시지 전송 동의가 필요합니다.</p>
+                <p>카카오 앱에서 친구 목록 권한을 활성화한 후 사용자 동의가 필요합니다.</p>
                 <a href={`/api/auth/kakao/login?consent=friends&returnTo=${encodeURIComponent(`/game/${roomId}`)}`}>친구 권한 동의하기</a>
+                <button className="friends-copy-fallback" onClick={() => void copyInvite()}>대신 초대 링크 복사</button>
               </div>
             ) : friends.length ? (
               <div className="friends-list">
