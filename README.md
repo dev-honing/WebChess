@@ -28,6 +28,8 @@ UPSTASH_REDIS_REST_URL
 UPSTASH_REDIS_REST_TOKEN
 ```
 
+기존 Vercel KV 통합에서 생성되는 `KV_REST_API_URL`, `KV_REST_API_TOKEN`도 자동으로 인식합니다.
+
 배포가 끝나면 Vercel에서 발급한 `https://프로젝트명.vercel.app` 주소로 접속할 수 있습니다. 원하는 별도 도메인은 Vercel 프로젝트의 `Settings > Domains`에서 연결할 수 있습니다.
 
 ## Vercel 구조

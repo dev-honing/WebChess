@@ -2,10 +2,10 @@ import { Redis } from "@upstash/redis";
 import type { GameState } from "@/lib/types";
 
 const ROOM_TTL_SECONDS = 60 * 60 * 24 * 30;
-const hasRedis = Boolean(
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN,
-);
-const redis = hasRedis ? Redis.fromEnv() : null;
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+const hasRedis = Boolean(redisUrl && redisToken);
+const redis = hasRedis ? new Redis({ url: redisUrl!, token: redisToken! }) : null;
 
 interface MemoryStore {
   rooms: Map<string, GameState>;
