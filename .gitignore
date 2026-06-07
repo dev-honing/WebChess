@@ -1,0 +1,9 @@
+node_modules
+.next
+.next-dev
+out
+coverage
+*.log
+.env*
+!.env.example
+data

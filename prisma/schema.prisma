@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String     @id @default(uuid())
+  email      String?    @unique
+  nickname   String
+  provider   String     @default("guest")
+  rating     Int        @default(1200)
+  whiteRooms GameRoom[] @relation("WhitePlayer")
+  blackRooms GameRoom[] @relation("BlackPlayer")
+  moves      GameMove[]
+  wins       Game[]     @relation("Winner")
+  losses     Game[]     @relation("Loser")
+  createdAt  DateTime   @default(now()) @map("created_at")
+}
+
+model GameRoom {
+  id          String    @id @default(uuid())
+  status      String    @default("waiting")
+  inviteCode  String    @unique @map("invite_code")
+  whiteUserId String?   @map("white_user_id")
+  blackUserId String?   @map("black_user_id")
+  whiteUser   User?     @relation("WhitePlayer", fields: [whiteUserId], references: [id])
+  blackUser   User?     @relation("BlackPlayer", fields: [blackUserId], references: [id])
+  game        Game?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  startedAt   DateTime? @map("started_at")
+  endedAt     DateTime? @map("ended_at")
+}
+
+model Game {
+  id           String     @id @default(uuid())
+  roomId       String     @unique @map("room_id")
+  room         GameRoom   @relation(fields: [roomId], references: [id])
+  winnerUserId String?    @map("winner_user_id")
+  loserUserId  String?    @map("loser_user_id")
+  winner       User?      @relation("Winner", fields: [winnerUserId], references: [id])
+  loser        User?      @relation("Loser", fields: [loserUserId], references: [id])
+  result       String
+  endReason    String     @map("end_reason")
+  finalFen     String     @map("final_fen")
+  pgn          String
+  moves        GameMove[]
+  createdAt    DateTime   @default(now()) @map("created_at")
+}
+
+model GameMove {
+  id         String   @id @default(uuid())
+  gameId     String   @map("game_id")
+  game       Game     @relation(fields: [gameId], references: [id])
+  moveNumber Int      @map("move_number")
+  userId     String?  @map("user_id")
+  user       User?    @relation(fields: [userId], references: [id])
+  fromSquare String   @map("from_square")
+  toSquare   String   @map("to_square")
+  promotion  String?
+  san        String
+  fenAfter   String   @map("fen_after")
+  createdAt  DateTime @default(now()) @map("created_at")
+}
