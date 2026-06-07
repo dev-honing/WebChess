@@ -2,10 +2,12 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chess, type Square } from "chess.js";
-import { getIdentity } from "@/lib/identity";
+import { getIdentity, saveIdentity } from "@/lib/identity";
 import type {
+  AuthUser,
   GameState,
   JoinRoomResponse,
+  KakaoFriend,
   MoveRequest,
   PlayerColor,
   ServerError,
@@ -43,7 +45,7 @@ function reasonLabel(reason?: string) {
 export default function GamePage({ params }: { params: Promise<{ roomId: string }> }) {
   const { roomId } = use(params);
   const identityRef = useRef<UserIdentity | null>(null);
-  const movesEndRef = useRef<HTMLDivElement | null>(null);
+  const moveListRef = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<GameState | null>(null);
   const [color, setColor] = useState<PlayerColor | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -51,6 +53,12 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
   const [lanOrigin, setLanOrigin] = useState("");
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [friends, setFriends] = useState<KakaoFriend[]>([]);
+  const [friendsOpen, setFriendsOpen] = useState(false);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friendConsentRequired, setFriendConsentRequired] = useState(false);
+  const [invitedFriend, setInvitedFriend] = useState("");
   const [, setClockTick] = useState(0);
 
   useEffect(() => {
@@ -61,11 +69,17 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
   useEffect(() => {
     let disposed = false;
     let pollTimer: ReturnType<typeof setInterval> | undefined;
-    const identity = getIdentity();
-    identityRef.current = identity;
 
     async function joinRoom() {
       try {
+        let identity = getIdentity();
+        const authResponse = await fetch("/api/auth/me", { cache: "no-store" });
+        const auth = (await authResponse.json()) as { user?: AuthUser | null };
+        if (auth.user) {
+          setAuthUser(auth.user);
+          identity = saveIdentity(auth.user.identity);
+        }
+        identityRef.current = identity;
         const response = await fetch(`/api/rooms/${roomId}/join`, {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -109,7 +123,8 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
   }, []);
 
   useEffect(() => {
-    movesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const list = moveListRef.current;
+    if (list) list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
   }, [state?.moves.length]);
 
   const chess = useMemo(() => {
@@ -195,6 +210,47 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
     setTimeout(() => setCopied(false), 1800);
   }
 
+  async function openKakaoFriends() {
+    if (!authUser) {
+      window.location.href = `/api/auth/kakao/login?returnTo=${encodeURIComponent(`/game/${roomId}`)}`;
+      return;
+    }
+    setFriendsOpen(true);
+    setFriendsLoading(true);
+    setFriendConsentRequired(false);
+    try {
+      const response = await fetch("/api/kakao/friends", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) {
+        setFriendConsentRequired(Boolean(data.requiresConsent));
+        throw new Error(data.message);
+      }
+      setFriends(data.friends || []);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "카카오 친구 목록을 불러오지 못했습니다.");
+    } finally {
+      setFriendsLoading(false);
+    }
+  }
+
+  async function inviteKakaoFriend(friend: KakaoFriend) {
+    setInvitedFriend(friend.uuid);
+    try {
+      const response = await fetch("/api/kakao/invite", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ receiverUuid: friend.uuid, roomId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      setNotice(`${friend.nickname}님에게 카카오 초대를 보냈습니다.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "카카오 초대를 보내지 못했습니다.");
+    } finally {
+      setInvitedFriend("");
+    }
+  }
+
   const squares = useMemo(() => {
     const files = color === "black" ? [...FILES].reverse() : FILES;
     const ranks = color === "black" ? [...RANKS].reverse() : RANKS;
@@ -220,7 +276,10 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
       <nav className="game-nav">
         <a className="brand" href="/"><span className="brand-mark">♞</span><span>WEB CHESS <b>ARENA</b></span></a>
         <div className="room-code"><span>ROOM</span><b>{roomId.toUpperCase()}</b></div>
-        <button className="copy-button" onClick={copyInvite} title={lanOrigin ? `LAN: ${lanOrigin}` : undefined}>{copied ? "복사 완료" : "초대 링크 복사"}</button>
+        <div className="game-nav-actions">
+          <button className="kakao-invite-button" onClick={() => void openKakaoFriends()}>카카오 친구 초대</button>
+          <button className="copy-button" onClick={copyInvite} title={lanOrigin ? `LAN: ${lanOrigin}` : undefined}>{copied ? "복사 완료" : "초대 링크 복사"}</button>
+        </div>
       </nav>
 
       <div className="game-layout">
@@ -268,13 +327,14 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
                     {piece && (
                       <span
                         className={`piece ${piece.color === "w" ? "white-piece" : "black-piece"}`}
+                        data-piece={PIECES[pieceKey]}
                         draggable={state.status === "playing" && color === state.turn && piece.color === (color === "white" ? "w" : "b")}
                         onDragStart={(event) => {
                           event.dataTransfer.setData("text/plain", square);
                           setSelected(square);
                         }}
                       >
-                        {PIECES[pieceKey]}
+                        <span className="piece-face">{PIECES[pieceKey]}</span>
                       </span>
                     )}
                   </button>
@@ -339,7 +399,7 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
           )}
 
           <div className="moves-heading"><span>기보</span><small>{state.moves.length} MOVES</small></div>
-          <div className="move-list">
+          <div className="move-list" ref={moveListRef}>
             {Array.from({ length: Math.ceil(state.moves.length / 2) }).map((_, index) => {
               const white = state.moves[index * 2];
               const black = state.moves[index * 2 + 1];
@@ -350,7 +410,6 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
               );
             })}
             {!state.moves.length && <p className="no-moves">첫 수를 기다리고 있습니다.</p>}
-            <div ref={movesEndRef} />
           </div>
 
           {notice && <button className="notice" onClick={() => setNotice("")}>{notice}<span>×</span></button>}
@@ -360,6 +419,42 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
           </div>
         </aside>
       </div>
+
+      {friendsOpen && (
+        <div className="friends-backdrop" onClick={() => setFriendsOpen(false)}>
+          <section className="friends-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="friends-modal-heading">
+              <div><small>KAKAO FRIENDS</small><h2>친구에게 대국 초대</h2></div>
+              <button onClick={() => setFriendsOpen(false)}>×</button>
+            </div>
+            {friendsLoading ? (
+              <p className="friends-empty">친구 목록을 불러오는 중...</p>
+            ) : friendConsentRequired ? (
+              <div className="friends-empty">
+                <p>카카오 친구 목록과 메시지 전송 동의가 필요합니다.</p>
+                <a href={`/api/auth/kakao/login?consent=friends&returnTo=${encodeURIComponent(`/game/${roomId}`)}`}>친구 권한 동의하기</a>
+              </div>
+            ) : friends.length ? (
+              <div className="friends-list">
+                {friends.map((friend) => (
+                  <div className="friend-row" key={friend.uuid}>
+                    {friend.profileThumbnail ? <img src={friend.profileThumbnail} alt="" /> : <span>K</span>}
+                    <b>{friend.nickname}</b>
+                    <button disabled={invitedFriend === friend.uuid} onClick={() => void inviteKakaoFriend(friend)}>
+                      {invitedFriend === friend.uuid ? "전송 중" : "초대"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="friends-empty">
+                <p>이 앱에 연결된 카카오 친구가 없습니다.</p>
+                <small>친구도 카카오 로그인 및 친구 목록 제공에 동의해야 표시됩니다.</small>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </main>
   );
 }

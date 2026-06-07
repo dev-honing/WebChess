@@ -40,3 +40,26 @@ UPSTASH_REDIS_REST_TOKEN
 - 별도 Socket.IO 서버 없이 단일 Vercel 프로젝트로 배포
 
 Vercel 배포 환경에서 Upstash Redis를 연결하지 않으면 서버리스 인스턴스 사이에 게임 상태가 유지되지 않으므로 실제 멀티플레이에는 Redis 연결이 필수입니다.
+
+## 카카오 로그인 및 친구 초대 설정
+
+1. [Kakao Developers](https://developers.kakao.com/)에서 애플리케이션을 생성합니다.
+2. `앱 설정 > 앱 키`의 REST API 키를 Vercel 환경 변수 `KAKAO_REST_API_KEY`에 추가합니다.
+3. `앱 설정 > 플랫폼 > Web`에 Vercel 배포 도메인을 등록합니다.
+   - 예: `https://web-chess.vercel.app`
+4. `제품 설정 > 카카오 로그인`을 활성화합니다.
+5. Redirect URI를 등록합니다.
+   - 예: `https://web-chess.vercel.app/api/auth/kakao/callback`
+6. 같은 URI를 Vercel 환경 변수 `KAKAO_REDIRECT_URI`에 추가합니다.
+7. 카카오 로그인 동의 항목에서 닉네임과 프로필 이미지를 설정합니다.
+8. 친구 초대 기능을 사용하려면 `카카오톡 친구 목록`과 `카카오톡 메시지 전송` 권한을 신청하고 동의 항목을 설정합니다.
+9. 카카오톡 메시지에 포함된 대국 링크가 열리도록 제품 링크 도메인에도 Vercel 도메인을 등록합니다.
+10. 환경 변수 추가 후 Vercel에서 Redeploy합니다.
+
+```text
+KAKAO_REST_API_KEY
+KAKAO_CLIENT_SECRET       # 카카오에서 Client Secret을 활성화한 경우만
+KAKAO_REDIRECT_URI
+```
+
+카카오 친구 API는 사용자의 모든 카카오톡 친구를 반환하지 않습니다. 같은 카카오 앱에 연결되어 있고 친구 목록 제공에 동의한 친구만 표시됩니다. 친구 목록 및 메시지 권한은 카카오 개발자 콘솔에서 별도 검수나 권한 승인이 필요할 수 있습니다.

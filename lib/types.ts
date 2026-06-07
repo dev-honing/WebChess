@@ -58,6 +58,18 @@ export interface UserIdentity {
   nickname: string;
 }
 
+export interface AuthUser {
+  identity: UserIdentity;
+  provider: "kakao";
+  profileImage?: string;
+}
+
+export interface KakaoFriend {
+  uuid: string;
+  nickname: string;
+  profileThumbnail?: string;
+}
+
 export interface JoinRoomResponse {
   state: GameState;
   playerColor: PlayerColor;

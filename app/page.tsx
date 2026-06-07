@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getIdentity, saveNickname } from "@/lib/identity";
-import type { GameState, UserIdentity } from "@/lib/types";
+import { getIdentity, resetIdentity, saveIdentity, saveNickname } from "@/lib/identity";
+import type { AuthUser, GameState, UserIdentity } from "@/lib/types";
 
 function statusText(game: GameState) {
   if (game.status === "waiting") return "상대 대기 중";
@@ -14,6 +14,8 @@ function statusText(game: GameState) {
 export default function HomePage() {
   const router = useRouter();
   const [identity, setIdentity] = useState<UserIdentity | null>(null);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [kakaoConfigured, setKakaoConfigured] = useState(false);
   const [nickname, setNickname] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [games, setGames] = useState<GameState[]>([]);
@@ -28,6 +30,10 @@ export default function HomePage() {
     setIdentity(current);
     setNickname(current.nickname);
     setShowLanHint(["localhost", "127.0.0.1"].includes(window.location.hostname));
+    const authError = new URLSearchParams(window.location.search).get("authError");
+    if (authError === "kakao_not_configured") setError("카카오 로그인 환경 변수가 설정되지 않았습니다.");
+    if (authError === "invalid_state") setError("카카오 로그인 요청이 만료되었습니다. 다시 시도해 주세요.");
+    if (authError === "kakao_login_failed") setError("카카오 로그인에 실패했습니다.");
     void fetch(`/api/games?userId=${encodeURIComponent(current.id)}`)
       .then((response) => response.json())
       .then(setGames)
@@ -37,6 +43,18 @@ export default function HomePage() {
       .then((data: { origins?: string[]; persistent?: boolean; deployment?: boolean }) => {
         setLanOrigin(data.origins?.[0] || "");
         setStorageWarning(Boolean(data.deployment && !data.persistent));
+      })
+      .catch(() => undefined);
+    void fetch("/api/auth/me", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((data: { configured?: boolean; user?: AuthUser | null }) => {
+        setKakaoConfigured(Boolean(data.configured));
+        if (data.user) {
+          const kakaoIdentity = saveIdentity(data.user.identity);
+          setAuthUser(data.user);
+          setIdentity(kakaoIdentity);
+          setNickname(kakaoIdentity.nickname);
+        }
       })
       .catch(() => undefined);
   }, []);
@@ -76,6 +94,14 @@ export default function HomePage() {
     router.push(`/game/${code}`);
   }
 
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setAuthUser(null);
+    const guest = resetIdentity();
+    setIdentity(guest);
+    setNickname(guest.nickname);
+  }
+
   return (
     <main className="home-shell">
       <nav className="topbar">
@@ -83,7 +109,19 @@ export default function HomePage() {
           <span className="brand-mark">♞</span>
           <span>WEB CHESS <b>ARENA</b></span>
         </a>
-        <span className="live-pill"><i /> REAL-TIME CHESS</span>
+        <div className="nav-actions">
+          {authUser ? (
+            <button className="kakao-profile" onClick={logout}>
+              {authUser.profileImage ? <img src={authUser.profileImage} alt="" /> : <span>K</span>}
+              <b>{authUser.identity.nickname}</b>
+              <small>로그아웃</small>
+            </button>
+          ) : kakaoConfigured ? (
+            <a className="kakao-login-button" href="/api/auth/kakao/login">카카오 로그인</a>
+          ) : (
+            <span className="live-pill"><i /> REAL-TIME CHESS</span>
+          )}
+        </div>
       </nav>
 
       {lanOrigin && showLanHint && (

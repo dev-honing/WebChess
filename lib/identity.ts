@@ -44,3 +44,19 @@ export function saveNickname(nickname: string): UserIdentity {
   localStorage.setItem(NAME_KEY, clean);
   return { ...identity, nickname: clean };
 }
+
+export function saveIdentity(identity: UserIdentity): UserIdentity {
+  const clean = {
+    id: String(identity.id).slice(0, 80),
+    nickname: String(identity.nickname).trim().slice(0, 18) || "Kakao Player",
+  };
+  localStorage.setItem(ID_KEY, clean.id);
+  localStorage.setItem(NAME_KEY, clean.nickname);
+  return clean;
+}
+
+export function resetIdentity(): UserIdentity {
+  localStorage.removeItem(ID_KEY);
+  localStorage.removeItem(NAME_KEY);
+  return getIdentity();
+}
