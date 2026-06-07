@@ -13,7 +13,7 @@ import type {
 } from "@/lib/types";
 
 const PIECES: Record<string, string> = {
-  wp: "♙", wn: "♘", wb: "♗", wr: "♖", wq: "♕", wk: "♔",
+  wp: "♟", wn: "♞", wb: "♝", wr: "♜", wq: "♛", wk: "♚",
   bp: "♟", bn: "♞", bb: "♝", br: "♜", bq: "♛", bk: "♚",
 };
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
