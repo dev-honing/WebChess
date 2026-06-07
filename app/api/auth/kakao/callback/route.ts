@@ -13,6 +13,12 @@ interface KakaoToken {
   expires_in: number;
 }
 
+interface KakaoTokenError {
+  error?: string;
+  error_code?: string;
+  error_description?: string;
+}
+
 interface KakaoMe {
   id: number;
   properties?: {
@@ -60,8 +66,28 @@ export async function GET(request: Request) {
       body,
       cache: "no-store",
     });
-    const token = (await tokenResponse.json()) as KakaoToken & { error_description?: string };
-    if (!tokenResponse.ok) throw new Error(token.error_description || "카카오 토큰 발급 실패");
+    const token = (await tokenResponse.json()) as KakaoToken & KakaoTokenError;
+    if (!tokenResponse.ok) {
+      console.error("Kakao token exchange failed", {
+        error: token.error,
+        errorCode: token.error_code,
+        description: token.error_description,
+        clientSecretConfigured: Boolean(process.env.KAKAO_CLIENT_SECRET),
+      });
+      if (
+        token.error_code === "KOE010" ||
+        token.error_description?.toLowerCase().includes("client credentials")
+      ) {
+        return Response.redirect(`${origin}/?authError=kakao_client_secret`);
+      }
+      if (token.error_code === "KOE303") {
+        return Response.redirect(`${origin}/?authError=kakao_redirect_mismatch`);
+      }
+      if (token.error_code === "KOE009") {
+        return Response.redirect(`${origin}/?authError=kakao_platform`);
+      }
+      throw new Error(token.error_description || "카카오 토큰 발급 실패");
+    }
 
     const me = await kakaoApi<KakaoMe>("/v2/user/me", token.access_token);
     const profile = me.kakao_account?.profile;

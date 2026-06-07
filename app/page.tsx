@@ -34,6 +34,9 @@ export default function HomePage() {
     if (authError === "kakao_not_configured") setError("카카오 로그인 환경 변수가 설정되지 않았습니다.");
     if (authError === "invalid_state") setError("카카오 로그인 요청이 만료되었습니다. 다시 시도해 주세요.");
     if (authError === "kakao_login_failed") setError("카카오 로그인에 실패했습니다.");
+    if (authError === "kakao_client_secret") setError("카카오 Client Secret이 없거나 올바르지 않습니다.");
+    if (authError === "kakao_redirect_mismatch") setError("토큰 요청의 카카오 Redirect URI가 일치하지 않습니다.");
+    if (authError === "kakao_platform") setError("카카오 Web 플랫폼 도메인 설정을 확인해 주세요.");
     void fetch(`/api/games?userId=${encodeURIComponent(current.id)}`)
       .then((response) => response.json())
       .then(setGames)
