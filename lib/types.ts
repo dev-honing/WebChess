@@ -64,12 +64,6 @@ export interface AuthUser {
   profileImage?: string;
 }
 
-export interface KakaoFriend {
-  uuid: string;
-  nickname: string;
-  profileThumbnail?: string;
-}
-
 export interface JoinRoomResponse {
   state: GameState;
   playerColor: PlayerColor;
