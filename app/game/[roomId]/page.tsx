@@ -13,8 +13,10 @@ import type {
 } from "@/lib/types";
 
 const PIECES: Record<string, string> = {
-  wp: "♟", wn: "♞", wb: "♝", wr: "♜", wq: "♛", wk: "♚",
-  bp: "♟", bn: "♞", bb: "♝", br: "♜", bq: "♛", bk: "♚",
+  wp: "/chess-pieces/wp.png", wn: "/chess-pieces/wn.png", wb: "/chess-pieces/wb.png",
+  wr: "/chess-pieces/wr.png", wq: "/chess-pieces/wq.png", wk: "/chess-pieces/wk.png",
+  bp: "/chess-pieces/bp.png", bn: "/chess-pieces/bn.png", bb: "/chess-pieces/bb.png",
+  br: "/chess-pieces/br.png", bq: "/chess-pieces/bq.png", bk: "/chess-pieces/bk.png",
 };
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const RANKS = ["8", "7", "6", "5", "4", "3", "2", "1"];
@@ -51,6 +53,7 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
   const [notice, setNotice] = useState("");
   const [copied, setCopied] = useState(false);
   const [lanOrigin, setLanOrigin] = useState("");
+  const [movesOpen, setMovesOpen] = useState(false);
   const [, setClockTick] = useState(0);
 
   useEffect(() => {
@@ -210,7 +213,7 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
   if (!state) {
     return (
       <main className="loading-screen">
-        <span className="brand-mark">♞</span>
+        <span className="brand-mark"><img src={PIECES.bn} alt="" /></span>
         <p>{notice || "게임 서버에 연결하는 중..."}</p>
         {notice && <a href="/">메인으로 돌아가기</a>}
       </main>
@@ -224,7 +227,7 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
   return (
     <main className="game-shell">
       <nav className="game-nav">
-        <a className="brand" href="/"><span className="brand-mark">♞</span><span>WEB CHESS <b>ARENA</b></span></a>
+        <a className="brand" href="/"><span className="brand-mark"><img src={PIECES.bn} alt="" /></span><span>WEB CHESS <b>ARENA</b></span></a>
         <div className="room-code"><span>ROOM</span><b>{roomId.toUpperCase()}</b></div>
         <div className="game-nav-actions">
           <button className="copy-button" onClick={copyInvite} title={lanOrigin ? `LAN: ${lanOrigin}` : undefined}>{copied ? "복사 완료" : "초대 링크 복사"}</button>
@@ -276,14 +279,13 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
                     {piece && (
                       <span
                         className={`piece ${piece.color === "w" ? "white-piece" : "black-piece"}`}
-                        data-piece={PIECES[pieceKey]}
                         draggable={state.status === "playing" && color === state.turn && piece.color === (color === "white" ? "w" : "b")}
                         onDragStart={(event) => {
                           event.dataTransfer.setData("text/plain", square);
                           setSelected(square);
                         }}
                       >
-                        <span className="piece-face">{PIECES[pieceKey]}</span>
+                        <img src={PIECES[pieceKey]} alt="" draggable={false} />
                       </span>
                     )}
                   </button>
@@ -293,7 +295,7 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
 
             {state.status === "waiting" && (
               <div className="board-overlay waiting-overlay">
-                <span className="pulse-ring">♞</span>
+                <span className="pulse-ring"><img src={PIECES.bn} alt="" /></span>
                 <h2>상대방을 기다리는 중</h2>
                 <p>초대 링크를 친구에게 보내 대국을 시작하세요.</p>
                 <button onClick={copyInvite}>{copied ? "링크를 복사했습니다" : "초대 링크 복사"}</button>
@@ -315,7 +317,7 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
                 <div>
                   {(["q", "r", "b", "n"] as const).map((piece) => (
                     <button key={piece} onClick={() => sendMove({ ...promotion, promotion: piece })}>
-                      {PIECES[`${color === "white" ? "w" : "b"}${piece}`]}
+                      <img src={PIECES[`${color === "white" ? "w" : "b"}${piece}`]} alt="" />
                     </button>
                   ))}
                 </div>
@@ -330,7 +332,7 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
           />
         </section>
 
-        <aside className="game-panel">
+        <aside className={`game-panel ${movesOpen ? "moves-open" : ""}`}>
           <div className="panel-status">
             <span className={`status-dot ${state.status}`} />
             <div>
@@ -347,7 +349,10 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
             </div>
           )}
 
-          <div className="moves-heading"><span>기보</span><small>{state.moves.length} MOVES</small></div>
+          <button className="moves-heading" onClick={() => setMovesOpen((open) => !open)} aria-expanded={movesOpen}>
+            <span>기보</span>
+            <small>{state.moves.length} MOVES <i>{movesOpen ? "−" : "+"}</i></small>
+          </button>
           <div className="move-list" ref={moveListRef}>
             {Array.from({ length: Math.ceil(state.moves.length / 2) }).map((_, index) => {
               const white = state.moves[index * 2];
@@ -387,7 +392,7 @@ function PlayerBar({
   const player = state.players[color];
   return (
     <div className={`player-bar ${active ? "active" : ""}`}>
-      <span className={`player-avatar ${color}`}>{color === "white" ? "♔" : "♚"}</span>
+      <span className={`player-avatar ${color}`}><img src={PIECES[`${color === "white" ? "w" : "b"}q`]} alt="" /></span>
       <div className="player-name">
         <b>{player?.nickname || "Waiting..."}</b>
         <small><i className={player?.connected ? "online" : ""} /> {player?.connected ? "CONNECTED" : "OFFLINE"}</small>

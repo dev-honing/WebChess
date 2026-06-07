@@ -109,7 +109,7 @@ export default function HomePage() {
     <main className="home-shell">
       <nav className="topbar">
         <a className="brand" href="/">
-          <span className="brand-mark">♞</span>
+          <span className="brand-mark"><img src="/chess-pieces/bn.png" alt="" /></span>
           <span>WEB CHESS <b>ARENA</b></span>
         </a>
         <div className="nav-actions">
@@ -198,7 +198,7 @@ export default function HomePage() {
           ))}
           {!games.length && (
             <div className="empty-games">
-              <span>♙</span>
+              <span><img src="/chess-pieces/wp.png" alt="" /></span>
               <p>아직 기록된 대국이 없습니다.</p>
             </div>
           )}
