@@ -42,6 +42,15 @@ function reasonLabel(reason?: string) {
   return labels[reason || ""] || "GAME OVER";
 }
 
+function sideLabel(color: PlayerColor) {
+  return color === "white" ? "백" : "흑";
+}
+
+function displayMove(san?: string, capturedValue?: number) {
+  if (!san) return "";
+  return capturedValue ? `${san} +${capturedValue}` : san;
+}
+
 export default function GamePage({ params }: { params: Promise<{ roomId: string }> }) {
   const { roomId } = use(params);
   const identityRef = useRef<UserIdentity | null>(null);
@@ -142,7 +151,7 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
   }, [state, Date.now()]);
 
   const requestAction = useCallback(async (
-    action: "move" | "resign" | "offer_draw" | "accept_draw" | "decline_draw",
+    action: "move" | "resign" | "offer_draw" | "accept_draw" | "decline_draw" | "rematch",
     move?: MoveRequest,
   ) => {
     if (!identityRef.current) return;
@@ -223,6 +232,10 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
   const topColor = color === "black" ? "white" : "black";
   const bottomColor = color === "black" ? "black" : "white";
   const incomingDraw = state.drawOfferBy && state.drawOfferBy !== color;
+  const livePoints = {
+    white: state.match.points.white + (state.status === "finished" ? 0 : state.captureScore.white),
+    black: state.match.points.black + (state.status === "finished" ? 0 : state.captureScore.black),
+  };
 
   return (
     <main className="game-shell">
@@ -307,7 +320,10 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
                 <span className="result-kicker">{reasonLabel(state.result.reason)}</span>
                 <h2>{state.result.winner ? `${state.result.winner === color ? "승리" : "패배"}` : "무승부"}</h2>
                 <p>{state.result.message}</p>
-                <a href="/">새 게임 시작</a>
+                <div className="result-actions">
+                  <button onClick={() => void requestAction("rematch")}>같은 방에서 재대국</button>
+                  <a href="/">새 방 만들기</a>
+                </div>
               </div>
             )}
 
@@ -336,8 +352,28 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
           <div className="panel-status">
             <span className={`status-dot ${state.status}`} />
             <div>
-              <small>{state.status === "waiting" ? "WAITING ROOM" : state.status === "finished" ? "GAME COMPLETE" : "LIVE MATCH"}</small>
-              <b>{state.status === "playing" ? `${state.turn === "white" ? "백" : "흑"}의 차례` : state.status === "waiting" ? "두 번째 플레이어 대기 중" : state.result?.message}</b>
+              <small>ROUND {state.round} · {state.status === "waiting" ? "WAITING ROOM" : state.status === "finished" ? "GAME COMPLETE" : "LIVE MATCH"}</small>
+              <b>{state.status === "playing" ? `${sideLabel(state.turn)}의 차례` : state.status === "waiting" ? "두 번째 플레이어 대기 중" : state.result?.message}</b>
+            </div>
+          </div>
+
+          <div className="score-card">
+            <div className="score-heading">
+              <span>MATCH SCORE</span>
+              <small>누적 라운드 / 점수</small>
+            </div>
+            <div className="score-grid">
+              {(["white", "black"] as const).map((side) => (
+                <div className={side === color ? "my-score" : ""} key={side}>
+                  <small>{sideLabel(side)}</small>
+                  <b>{state.match.rounds[side]}승</b>
+                  <span>{livePoints[side]}점</span>
+                </div>
+              ))}
+            </div>
+            <div className="round-score">
+              <span>현재 라운드</span>
+              <b>백 {state.captureScore.white} : 흑 {state.captureScore.black}</b>
             </div>
           </div>
 
@@ -359,7 +395,7 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
               const black = state.moves[index * 2 + 1];
               return (
                 <div className="move-row" key={index}>
-                  <span>{index + 1}.</span><b>{white?.san || ""}</b><b>{black?.san || ""}</b>
+                  <span>{index + 1}.</span><b>{displayMove(white?.san, white?.capturedValue)}</b><b>{displayMove(black?.san, black?.capturedValue)}</b>
                 </div>
               );
             })}
@@ -368,8 +404,14 @@ export default function GamePage({ params }: { params: Promise<{ roomId: string 
 
           {notice && <button className="notice" onClick={() => setNotice("")}>{notice}<span>×</span></button>}
           <div className="game-actions">
-            <button disabled={state.status !== "playing"} onClick={() => void requestAction("offer_draw")}>½ 무승부 제안</button>
-            <button className="danger-action" disabled={state.status !== "playing"} onClick={() => window.confirm("정말 기권하시겠습니까?") && void requestAction("resign")}>기권</button>
+            {state.status === "finished" ? (
+              <button onClick={() => void requestAction("rematch")}>같은 방에서 재대국</button>
+            ) : (
+              <>
+                <button disabled={state.status !== "playing"} onClick={() => void requestAction("offer_draw")}>½ 무승부 제안</button>
+                <button className="danger-action" disabled={state.status !== "playing"} onClick={() => window.confirm("정말 기권하시겠습니까?") && void requestAction("resign")}>기권</button>
+              </>
+            )}
           </div>
         </aside>
       </div>

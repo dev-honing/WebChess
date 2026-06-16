@@ -22,6 +22,8 @@ export interface MoveRecord {
   from: string;
   to: string;
   promotion?: string;
+  captured?: string;
+  capturedValue?: number;
   san: string;
   fenAfter: string;
   playedAt: number;
@@ -34,15 +36,23 @@ export interface GameResult {
   message: string;
 }
 
+export interface MatchScore {
+  rounds: Record<PlayerColor, number>;
+  points: Record<PlayerColor, number>;
+}
+
 export interface GameState {
   roomId: string;
   status: RoomStatus;
+  round: number;
   players: Partial<Record<PlayerColor, PublicPlayer>>;
   fen: string;
   pgn: string;
   turn: PlayerColor;
   check: boolean;
   moves: MoveRecord[];
+  captureScore: Record<PlayerColor, number>;
+  match: MatchScore;
   clocks: Record<PlayerColor, number>;
   turnStartedAt: number | null;
   drawOfferBy: PlayerColor | null;

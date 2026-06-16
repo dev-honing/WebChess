@@ -11,13 +11,23 @@ import type {
 } from "@/lib/types";
 
 const STARTING_TIME_MS = 10 * 60 * 1000;
+const PIECE_VALUES: Record<string, number> = {
+  p: 1,
+  n: 3,
+  b: 3,
+  r: 5,
+  q: 9,
+  // Kings are never scored as captures; checkmate ends the round.
+  k: 0,
+};
 
 export type GameAction =
   | { type: "move"; move: MoveRequest }
   | { type: "resign" }
   | { type: "offer_draw" }
   | { type: "accept_draw" }
-  | { type: "decline_draw" };
+  | { type: "decline_draw" }
+  | { type: "rematch" };
 
 export class GameError extends Error {
   constructor(
@@ -47,6 +57,27 @@ function cloneState(state: GameState): GameState {
   return structuredClone(state);
 }
 
+function emptyScore() {
+  return { white: 0, black: 0 };
+}
+
+function ensureGameMeta(state: GameState) {
+  let changed = false;
+  if (!state.round) {
+    state.round = 1;
+    changed = true;
+  }
+  if (!state.captureScore) {
+    state.captureScore = emptyScore();
+    changed = true;
+  }
+  if (!state.match) {
+    state.match = { rounds: emptyScore(), points: emptyScore() };
+    changed = true;
+  }
+  return changed;
+}
+
 function findPlayerColor(state: GameState, userId: string): PlayerColor | null {
   if (state.players.white?.id === userId) return "white";
   if (state.players.black?.id === userId) return "black";
@@ -71,10 +102,14 @@ function finish(
   reason: EndReason,
   message: string,
 ) {
+  ensureGameMeta(state);
   state.status = "finished";
   state.endedAt = Date.now();
   state.turnStartedAt = null;
   state.drawOfferBy = null;
+  state.match.points.white += state.captureScore.white;
+  state.match.points.black += state.captureScore.black;
+  if (winner) state.match.rounds[winner] += 1;
   state.result = {
     outcome: winner ? `${winner}_win` : "draw",
     winner,
@@ -88,12 +123,20 @@ function settleClock(state: GameState, now = Date.now()) {
   state.clocks[state.turn] = Math.max(0, state.clocks[state.turn] - (now - state.turnStartedAt));
   state.turnStartedAt = now;
   if (state.clocks[state.turn] === 0) {
-    const loser = state.turn;
+    const winner =
+      state.captureScore.white === state.captureScore.black
+        ? null
+        : state.captureScore.white > state.captureScore.black
+          ? "white"
+          : "black";
+    const scoreText = `백 ${state.captureScore.white}점 : 흑 ${state.captureScore.black}점`;
     finish(
       state,
-      opposite(loser),
+      winner,
       "timeout",
-      `${loser === "white" ? "백" : "흑"}의 시간이 종료되었습니다.`,
+      winner
+        ? `시간 종료. ${scoreText}, ${winner === "white" ? "백" : "흑"}이 점수 우세로 승리했습니다.`
+        : `시간 종료. ${scoreText}, 점수 동률로 무승부입니다.`,
     );
   }
 }
@@ -120,6 +163,33 @@ function finishForBoardState(state: GameState, chess: Chess, mover: PlayerColor)
   }
 }
 
+function resetBoardForNextRound(state: GameState) {
+  if (!state.players.white || !state.players.black) {
+    throw new GameError("WAITING_FOR_PLAYER", "두 명의 플레이어가 필요합니다.");
+  }
+  if (state.status !== "finished") {
+    throw new GameError("GAME_NOT_FINISHED", "종료된 게임만 다시 시작할 수 있습니다.");
+  }
+  ensureGameMeta(state);
+  const chess = new Chess();
+  const now = Date.now();
+  state.round += 1;
+  state.status = "playing";
+  state.fen = chess.fen();
+  state.pgn = "";
+  state.turn = "white";
+  state.check = false;
+  state.moves = [];
+  state.captureScore = emptyScore();
+  state.clocks = { white: STARTING_TIME_MS, black: STARTING_TIME_MS };
+  state.turnStartedAt = now;
+  state.drawOfferBy = null;
+  state.result = null;
+  state.startedAt = now;
+  state.endedAt = null;
+  state.serverNow = now;
+}
+
 export function createGame(rawIdentity: UserIdentity): JoinRoomResponse & { roomId: string } {
   const identity = cleanIdentity(rawIdentity);
   const creatorColor: PlayerColor = Math.random() < 0.5 ? "white" : "black";
@@ -128,6 +198,7 @@ export function createGame(rawIdentity: UserIdentity): JoinRoomResponse & { room
   const state: GameState = {
     roomId: randomBytes(5).toString("hex"),
     status: "waiting",
+    round: 1,
     players: {
       [creatorColor]: { ...identity, connected: true },
     },
@@ -136,6 +207,8 @@ export function createGame(rawIdentity: UserIdentity): JoinRoomResponse & { room
     turn: "white",
     check: false,
     moves: [],
+    captureScore: emptyScore(),
+    match: { rounds: emptyScore(), points: emptyScore() },
     clocks: { white: STARTING_TIME_MS, black: STARTING_TIME_MS },
     turnStartedAt: null,
     drawOfferBy: null,
@@ -150,6 +223,7 @@ export function createGame(rawIdentity: UserIdentity): JoinRoomResponse & { room
 
 export function joinGame(stored: GameState, rawIdentity: UserIdentity): JoinRoomResponse {
   const state = cloneState(stored);
+  ensureGameMeta(state);
   const identity = cleanIdentity(rawIdentity);
   let color = findPlayerColor(state, identity.id);
 
@@ -178,7 +252,7 @@ export function joinGame(stored: GameState, rawIdentity: UserIdentity): JoinRoom
 export function readGame(stored: GameState) {
   const state = cloneState(stored);
   const now = Date.now();
-  let changed = false;
+  let changed = ensureGameMeta(state);
 
   if (
     state.status === "playing" &&
@@ -206,8 +280,15 @@ export function performAction(
   action: GameAction,
 ) {
   const state = cloneState(stored);
+  ensureGameMeta(state);
   const identity = cleanIdentity(rawIdentity);
   const color = requirePlayer(state, identity);
+
+  if (action.type === "rematch") {
+    resetBoardForNextRound(state);
+    return state;
+  }
+
   requirePlaying(state);
   settleClock(state);
   if (state.status === "finished") return state;
@@ -231,12 +312,17 @@ export function performAction(
     if (!move) throw new GameError("ILLEGAL_MOVE", "이동할 수 없는 수입니다.");
 
     const mover = chessColor(move.color);
+    const captured = move.captured;
+    const capturedValue = captured ? PIECE_VALUES[captured] || 0 : 0;
+    if (capturedValue) state.captureScore[mover] += capturedValue;
     state.moves.push({
       moveNumber: Math.floor(state.moves.length / 2) + 1,
       color: mover,
       from: move.from,
       to: move.to,
       promotion: move.promotion,
+      captured,
+      capturedValue: captured ? capturedValue : undefined,
       san: move.san,
       fenAfter: chess.fen(),
       playedAt: Date.now(),
