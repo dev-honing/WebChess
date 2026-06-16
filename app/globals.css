@@ -157,7 +157,7 @@ a { color: inherit; text-decoration: none; }
 .square.selected::before { content: ""; position: absolute; inset: 4px; border: 2px solid rgba(156,119,57,.88); border-radius: 3px; z-index: 1; box-shadow: inset 0 0 0 1px rgba(255,245,216,.3); }
 .square.move-target::after { content: ""; position: absolute; width: 18%; height: 18%; border-radius: 50%; background: rgba(43,39,31,.38); z-index: 2; }
 .square.capture-target::after { content: ""; position: absolute; inset: 8%; border-radius: 50%; border: 3px solid rgba(143,107,50,.62); z-index: 2; }
-.square.checked { background-color: #f3cbc4; }
+.square.checked { background-color: #FCE3E3; }
 .piece {
   position: relative; z-index: 3; width: 94%; height: 94%; display: grid; place-items: center;
   user-select: none; cursor: grab; isolation: isolate; transform: translateY(-1%);
